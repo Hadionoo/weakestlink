@@ -1,19 +1,18 @@
 var request = require('request');
-
-
-
-
-
 var async = require('async');
 
 var BASE_URL = "https://na.api.pvp.net";
-var API_KEY = require('./config.js').api_key;
-var api_key_string = "?api_key=" + API_KEY;
 
-var getSummonerId = function(summonerName, callback) {
+var WeakestLink = function(options) {
+	this.api_key = options.api_key;
+	return this;
+};
+
+WeakestLink.prototype.getSummonerId = function(summonerName, callback) {
+	var api_key = this.api_key;
 	request(
 		BASE_URL + "/api/lol/na/v1.4/summoner/by-name/"
-		+ summonerName + api_key_string
+		+ summonerName + "?api_key=" + api_key
 		, function(err, res, body) {
 			if (err) {
 				throw err;
@@ -21,17 +20,18 @@ var getSummonerId = function(summonerName, callback) {
 				callback(new Error('> 200 response code'));
 			} else {
 				body = JSON.parse(body);
-				summonerName = summonerName.toLowerCase().replace(' ', '');
+				summonerName = summonerName.toLowerCase().replace(/ /g, '');
 				var id = body[summonerName].id;
 				callback(null, id);
 			}
 		})
 }
 
-var getEnemyParticipants = function(summonerId, callback) {
+WeakestLink.prototype.getEnemyParticipants = function(summonerId, callback) {
+	var api_key = this.api_key;
 	request(
 		BASE_URL + "/observer-mode/rest/consumer/getSpectatorGameInfo/NA1/" 
-		+ summonerId + api_key_string
+		+ summonerId + "?api_key=" + api_key
 		, function(err,res,body) {
 			if (err) {
 				throw err;
@@ -64,10 +64,12 @@ var getEnemyParticipants = function(summonerId, callback) {
 	});
 };
 
-var getMatchHistory = function(summonerId, callback) {
+WeakestLink.prototype.getMatchHistory = function(summonerId, callback) {
+	var api_key = this.api_key;
 	request(
 		BASE_URL + "/api/lol/na/v2.2/matchhistory/" + summonerId 
-		+ api_key_string
+		 + "?api_key=" + api_key
+		 + "&endIndex=5&rankedQueues=RANKED_SOLO_5x5"
 		, function(err, res, body) {
 			if (err) {
 				throw err;
@@ -100,24 +102,22 @@ var getTiltScore = function(responseObject) {
 	return (kills + assists * 0.5) / deaths;
 }
 
-module.exports = function(summonerName, callback) {
-	getSummonerId(summonerName, function(err, summonerId) {
-		getEnemyParticipants(summonerId, function(err, enemyParticipantIds){
-			async.map(enemyParticipantIds, getMatchHistory, function(err, matchHistories){
+WeakestLink.prototype.getEnemyTiltScores = function(summonerName, callback) {
+	var self = this;
+	self.getSummonerId(summonerName, function(err, summonerId) {
+		self.getEnemyParticipants(summonerId, function(err, enemyParticipantIds){
+			async.map(enemyParticipantIds, self.getMatchHistory.bind(self), function(err, matchHistories){
 				var tiltStats = matchHistories.map(function(matchhistory) 	{
 					return {
-						tiltScore: getTiltScore(matchhistory), 
+						tiltScore: getTiltScore(matchhistory).toFixed(5), 
 						summonerName: matchhistory.matches[0].participantIdentities[0].player.summonerName
-					}
+					};
 				});
-				var weakestLink = tiltStats[0];
-				for (var i = 0; i < tiltStats.length; i++){
-					if (tiltStats[i].tiltScore < weakestLink.tiltScore){
-						weakestLink = tiltStats[i];
-					}
-				}
-				callback(null, weakestLink.summonerName);
+			
+				callback(null, tiltStats);
 			});
 		});
 	});
 };
+
+module.exports = WeakestLink;
