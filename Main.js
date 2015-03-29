@@ -45,7 +45,6 @@ var getMatchParticipants = function(summonerId, callback) {
 					}
 
 				}
-				console.log(summonerTeamId);
 				for (var i = 0; i<participants.length;i++)
 				{
 					if(participants[i].summonerTeamId != summonerTeamId)
@@ -60,4 +59,37 @@ var getMatchParticipants = function(summonerId, callback) {
 	});
 };
 
+var getMatchHistory = function(summonerId, callback) {
+	request(
+		BASE_URL + "/api/lol/na/v2.2/matchhistory/" + summonerId 
+		+ api_key_string
+		, function(err, res, body) {
+			if (err) {
+				throw err;
+			} else if (res.statusCode !== 200) {
+				callback(new Error('> 200 response code'));
+			} else {
+				body = JSON.parse(body);
+				callback(null, body);
+			}
+		})
+}
 
+var getTiltScore = function(responseObject) {
+	var matches = responseObject.matches;
+	var stats = matches.map(function(match) {
+		return match.participants[0].stats;
+	})
+	var kills = stats.reduce(function(kills, stats){
+		return kills+stats.kills;		
+	}, 0)
+
+	var deaths = stats.reduce(function(deaths, stats){
+		return deaths+stats.deaths;
+
+	}, 0)
+	var assists = stats.redue(function(assists, stats){
+		return assists + stats.assists;
+	}, 0)
+	return ((kills + (assists * 0.5) / deaths);
+}
