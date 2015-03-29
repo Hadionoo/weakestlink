@@ -1,0 +1,6 @@
+{
+  "name": "WeakestLink",
+  "dependencies": {
+    "request": "^2.54.0"
+  }
+}
